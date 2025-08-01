@@ -15,11 +15,12 @@
     "clean": "rimraf dist",
     "dist": "npm run build && electron-builder",
     "pack": "electron-builder --dir",
-    "dist:win": "cross-env NODE_ENV=production npm run build && electron-builder --win --config",
+    "dist:win": "cross-env NODE_ENV=production npm run build && electron-builder --win",
     "postinstall": "electron-builder install-app-deps",
     "build:front": "cd frontend && npm ci && npm run build",
     "build:electron": "npm run clean && npm run build:front && electron-builder --win",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "build:exe": "node build-exe.js"
   },
   "keywords": [
     "electron",
@@ -36,6 +37,7 @@
     "electron": "^28.3.3",
     "electron-builder": "^24.9.1",
     "electron-rebuild": "^3.2.9",
+    "png-to-ico": "^2.1.8",
     "rimraf": "^5.0.5",
     "wait-on": "^7.2.0"
   },
