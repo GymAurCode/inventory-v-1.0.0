@@ -17,6 +17,8 @@ class DatabaseInitializer {
       // Determine database path based on environment
       this.dbPath = this.getDatabasePath();
       
+      console.log('Initializing database at:', this.dbPath);
+      
       // Ensure directory exists
       this.ensureDirectoryExists();
       
@@ -40,22 +42,7 @@ class DatabaseInitializer {
     }
   }
 
-  /**
-   * Get appropriate database path for different systems
-   */
-  getDatabasePath() {
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
-    if (isDevelopment) {
-      // Development: Use local path
-      return path.join(__dirname, '..', 'db', 'database.sqlite');
-    } else {
-      // Production: Use system-specific path
-      const appDataPath = this.getAppDataPath();
-      const appFolder = path.join(appDataPath, 'EyercallData');
-      return path.join(appFolder, 'database.sqlite');
-    }
-  }
+
 
   /**
    * Get application data path for different operating systems
@@ -275,10 +262,15 @@ class DatabaseInitializer {
       // Development: Use local path
       return path.join(__dirname, '..', 'db', 'database.sqlite');
     } else {
-      // Production: Use app's user data directory
-      const appPath = process.env.APP_PATH || this.getAppDataPath();
-      const dbFolder = path.join(appPath, 'Database');
-      return path.join(dbFolder, 'eyercall.db');
+      // Production: Use environment variable or fallback to userData
+      if (process.env.DB_PATH) {
+        return process.env.DB_PATH;
+      } else {
+        // Fallback: Use app's user data directory
+        const appDataPath = this.getAppDataPath();
+        const appFolder = path.join(appDataPath, 'EyercallData');
+        return path.join(appFolder, 'database.sqlite');
+      }
     }
   }
 

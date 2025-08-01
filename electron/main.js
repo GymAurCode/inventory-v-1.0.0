@@ -2,15 +2,12 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { fork } = require('child_process');
+
 // Consider app.isPackaged to detect development mode reliably
 const isDev = !app.isPackaged;
 
-// Database setup
-const dbPath = path.join(
-  process.env.APPDATA || path.resolve('./'),
-  'EyercallData',
-  'inventory.db'
-);
+// Database setup - ensure it's in userData directory
+const dbPath = path.join(app.getPath('userData'), 'database.sqlite');
 
 // Ensure database directory exists
 const dbDir = path.dirname(dbPath);
@@ -56,20 +53,37 @@ function createWindow() {
 
 // Start backend server in production
 if (!isDev) {
-  // Get the correct path whether in asar or not
+  // Locate backend entry point
   const backendPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'backend', 'server.js')
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'backend', 'server.js')
     : path.join(__dirname, '..', 'backend', 'server.js');
 
-  // Pass the resource path to the backend process
-  backendProcess = fork(backendPath, [], { 
-    env: { 
-      ...process.env, 
+  console.log('Backend path:', backendPath);
+  console.log('Database path:', dbPath);
+  console.log('User data path:', app.getPath('userData'));
+
+  // Launch backend as a separate Node process
+  backendProcess = fork(backendPath, [], {
+    cwd: path.dirname(backendPath), // make sure relative requires resolve correctly
+    env: {
+      ...process.env,
       NODE_ENV: 'production',
       PORT: '4000',
       RESOURCE_PATH: process.resourcesPath,
-      APP_PATH: app.getPath('userData')
-    } 
+      APP_PATH: app.getPath('userData'),
+      DB_PATH: dbPath,
+      ELECTRON_RUN_AS_NODE: '1' // run the executable in pure Node mode
+    },
+    stdio: ['pipe', 'pipe', 'pipe', 'ipc'] // Enable IPC for better communication
+  });
+  
+  // Handle backend stdout/stderr
+  backendProcess.stdout.on('data', (data) => {
+    console.log('Backend stdout:', data.toString());
+  });
+  
+  backendProcess.stderr.on('data', (data) => {
+    console.error('Backend stderr:', data.toString());
   });
   
   backendProcess.on('error', (error) => {
@@ -80,8 +94,8 @@ if (!isDev) {
     );
   });
   
-  backendProcess.on('exit', (code) => {
-    console.log(`Backend process exited with code ${code}`);
+  backendProcess.on('exit', (code, signal) => {
+    console.log(`Backend process exited with code ${code} and signal ${signal}`);
     if (code !== 0) {
       dialog.showErrorBox(
         'Backend Process Terminated',
@@ -89,6 +103,14 @@ if (!isDev) {
       );
     }
   });
+
+  // Wait for backend to be ready
+  backendProcess.on('message', (message) => {
+    if (message.type === 'ready') {
+      console.log('Backend is ready');
+    }
+  });
+}
 
 app.whenReady().then(createWindow);
 
@@ -100,6 +122,7 @@ app.on('window-all-closed', () => {
 
 app.on('quit', () => {
   if (backendProcess) {
+    console.log('Terminating backend process...');
     backendProcess.kill();
   }
 });
@@ -116,5 +139,5 @@ ipcMain.handle('get-db-path', () => {
 });
 
 ipcMain.handle('get-app-data-path', () => {
-  return process.env.APPDATA || path.resolve('./');
+  return app.getPath('userData');
 }); 

@@ -11,10 +11,10 @@ const expenseRoutes = require('./routes/expenses');
 const financeRoutes = require('./routes/finance');
 const partnerRoutes = require('./routes/partners');
 
-// Import SQLite database initialization (currently unused by controllers)
+// Import SQLite database initialization
 const dbInitializer = require('./config/initDb');
 
-// Import JSON database initialization used by controllers (Auth, etc.)
+// Import JSON database initialization used by controllers
 const jsonDb = require('./db/init');
 
 const app = express();
@@ -25,6 +25,10 @@ if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'development';
 }
 
+console.log('Server starting with environment:', process.env.NODE_ENV);
+console.log('Database path from env:', process.env.DB_PATH);
+console.log('App path from env:', process.env.APP_PATH);
+
 // Middleware
 app.use(helmet());
 app.use(cors({
@@ -34,12 +38,20 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize database
-// Initialize SQLite DB (not yet used by controllers)
-dbInitializer.initializeDatabase();
-
-// Initialize JSON DB used by AuthController and others (creates default owner accounts)
-jsonDb.initializeDatabase(path.join(__dirname, 'db', 'database.json'));
+// Initialize database with proper path handling
+try {
+  // Initialize SQLite DB with environment-specific path
+  dbInitializer.initializeDatabase();
+  
+  // Initialize JSON DB used by AuthController and others
+  const jsonDbPath = process.env.DB_PATH || path.join(__dirname, 'db', 'database.json');
+  jsonDb.initializeDatabase(jsonDbPath);
+  
+  console.log('✅ Database initialization completed');
+} catch (error) {
+  console.error('❌ Database initialization failed:', error);
+  process.exit(1);
+}
 
 // Make database available to routes
 app.locals.db = dbInitializer.getDatabase();
@@ -53,7 +65,11 @@ app.use('/api/partners', partnerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    database: dbInitializer.getDatabasePath()
+  });
 });
 
 // Error handling middleware
@@ -71,8 +87,26 @@ app.use('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Database path: ${dbInitializer.getDatabasePath()}`);
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`📊 Database path: ${dbInitializer.getDatabasePath()}`);
+  
+  // Send ready message to parent process if running in Electron
+  if (process.send) {
+    process.send({ type: 'ready' });
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  dbInitializer.closeDatabase();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  dbInitializer.closeDatabase();
+  process.exit(0);
 });
 
 module.exports = app; 

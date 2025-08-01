@@ -9,14 +9,17 @@
     "dev:backend": "cd backend && npm run dev",
     "dev:electron": "wait-on http://localhost:5173 && electron .",
     "build": "npm run clean && npm run build:deps && npm run build:frontend && npm run build:backend",
-    "build:deps": "npm install && cd frontend && npm install && cd ../backend && npm install",
-    "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm run build",
+    "build:deps": "npm install --production=false && cd frontend && npm install --production=false && cd ../backend && npm install --production=false",
+    "build:frontend": "cd frontend && cross-env NODE_ENV=production npm run build",
+    "build:backend": "cd backend && cross-env NODE_ENV=production npm run build",
     "clean": "rimraf dist",
     "dist": "npm run build && electron-builder",
     "pack": "electron-builder --dir",
-    "dist:win": "electron-builder --win --publish never",
-    "postinstall": "electron-builder install-app-deps"
+    "dist:win": "cross-env NODE_ENV=production npm run build && electron-builder --win --config",
+    "postinstall": "electron-builder install-app-deps",
+    "build:front": "cd frontend && npm ci && npm run build",
+    "build:electron": "npm run clean && npm run build:front && electron-builder --win",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "keywords": [
     "electron",
@@ -29,8 +32,10 @@
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "electron": "^28.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^28.3.3",
     "electron-builder": "^24.9.1",
+    "electron-rebuild": "^3.2.9",
     "rimraf": "^5.0.5",
     "wait-on": "^7.2.0"
   },
@@ -60,16 +65,38 @@
     ],
     "extraResources": [
       {
-        "from": "backend/config",
-        "to": "config",
-        "filter": ["**/*"]
+        "from": "backend",
+        "to": "backend"
       }
     ],
     "win": {
-      "target": ["portable", "zip"],
-      "icon": "public/icon.ico",
-      "artifactName": "EyercallDesktop-${version}.${ext}"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.ico"
     },
-    "asar": true
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Eyercall Desktop",
+      "artifactName": "EyercallDesktop-Setup-${version}.${ext}",
+      "uninstallDisplayName": "Eyercall Desktop"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "backend/**",
+      "node_modules/better-sqlite3/**",
+      "node_modules/bcryptjs/**",
+      "node_modules/bcrypt/**"
+    ],
+    "electronDist": "./node_modules/electron/dist",
+    "electronVersion": "28.3.3"
   }
-} 
+}
